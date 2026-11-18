@@ -46,7 +46,7 @@ struct Barrier
     alpha::Float64
     beta::Float64
     mass::Float64
-    thick::Int32
+    thick::Float64
     width::Int32
     length::Int32
     kappa::Float64
@@ -123,12 +123,10 @@ function apply_pattern(h, barrier, veclen)
     init_grid = zeros(Float64, veclen)
 
     junc_thick = Int(barrier.thick / h)
-    half_length = floor(Int, (barrier.length - 2 * barrier.thick) / (2 * h))
-    coat_width = Int(5.0 / h)
+
+    half_length = floor(Int, (barrier.length / (2 * h) - barrier.thick / h))
 
     init_grid[half_length+1:half_length+junc_thick, :] .= 1.0
-    init_grid[:, 1:coat_width] .= 1.0
-    init_grid[:, end-coat_width+1:end] .= 1.0
     return init_grid
 end
 
@@ -179,8 +177,7 @@ function get_state(mesh, backend)
     n0 = elemcount(mesh, Val(0))
     n1 = elemcount(mesh, Val(1))
 
-    ψdata = Adapt.adapt(backend, exp.(Complex{Float64}(2π * im) .* rand(Xoshiro(1), Float64, n0)))
-    ψ = RectPrimalForm0Data(mesh, ψdata)
+    ψ = RectPrimalForm0Data(mesh, KernelAbstractions.ones(backend, Complex{Float64}, n0))
     a = RectPrimalForm1Data(mesh, KernelAbstractions.zeros(backend, Float64, n1))
     φ = RectPrimalForm0Data(mesh, KernelAbstractions.zeros(backend, Float64, n0))
 
@@ -193,10 +190,9 @@ function get_boundary(solver)
     return boundary
 end
 
-function get_junction(b_field, current; barrier = Barrier()) 
+function get_junction(b_field, current, h=0.5; barrier = Barrier()) 
     backend = CUDABackend()
 
-    h = 0.5
     Δt = 0.5
     tol = 1e-3
     levelcount = 3
@@ -211,6 +207,107 @@ function get_junction(b_field, current; barrier = Barrier())
     boundary = get_boundary(solver)
 
     j_super = MulTDGL.similar(MulTDGL.state(solver).a)
+    MulTDGL.data(j_super) .= zero(eltype(MulTDGL.data(j_super)))
 
     return Junction(barrier, b_field, current, solver, boundary, j_super, JcInitHold(), 0)
+end
+
+const DEPAIRING_CURRENT_1D = 2 / (3 * sqrt(3))
+
+function junction_depairing_current(junction::Junction)
+    bar = junction.barrier
+    B = junction.field
+
+    xi = sqrt.(1.0 ./ (-bar.mass .* bar.alpha .+ B))
+    s = bar.beta .* (1.0 .- B) ./ (bar.alpha .- B ./ bar.mass)
+    v = bar.mass .* xi .* sqrt.(1.0 .- B)
+
+    f_d2 = if isapprox(bar.mass, bar.beta)
+        (1.0 .- B) ./ (2.0 .- 2.0 .* bar.alpha)
+    else
+        (v.^2 .+ 1.0 .- sqrt.(max.(0.0, 1.0 .+ (2.0 .- s) .* v.^2))) ./ (v.^2 .+ s)
+    end
+
+    fink = (1.0 .- sqrt.(max.(0.0, 1.0 .- s .* f_d2))) ./ (s .* v)
+    boyd = (1.0 .- B).^(1.5)
+    decay = exp.(-bar.thick ./ xi)
+
+    return 4.0 .* fink .* boyd .* decay
+end
+
+function barrier_center_x(junction::Junction)
+    h = mesh(junction).h[1]
+    barrier = junction.barrier
+    junc_thick = Int(barrier.thick / h)
+    half_length = floor(Int, (barrier.length - 2 * barrier.thick) / (2 * h))
+    return half_length + cld(junc_thick, 2)
+end
+
+function barrier_y_coords(junction::Junction)
+    msh = mesh(junction)
+    w = msh.extent[2] * msh.h[2]
+    ny = elemextent(msh, (1,), 2)
+    return collect(range(-w / 2, w / 2, length = ny))
+end
+
+function effective_thickness(barrier::Barrier)
+    return Float64(barrier.thick) + 2.0 * barrier.kappa
+end
+
+function josephson_penetration_depth(barrier::Barrier, J_DJ::Real)
+    d = effective_thickness(barrier)
+    return barrier.kappa / sqrt(d * J_DJ)
+end
+
+function analytic_narrow_J(junction::Junction, y::AbstractVector{<:Real}; J_DJ::Real = junction_depairing_current(junction))
+    d = effective_thickness(junction.barrier)
+    k = d * junction.field
+    return J_DJ .* cos.(k .* y)
+end
+
+function analytic_narrow_A(junction::Junction, y::AbstractVector{<:Real})
+    return -junction.field .* y
+end
+
+function wide_phase_profile(junction::Junction, _, y_point::Real, J_DJ::Real)
+    barrier = junction.barrier
+    d = effective_thickness(barrier)
+    w = Float64(barrier.width)
+    κ = barrier.kappa
+    μ0 = 1.0 / κ^2
+    λ_J = josephson_penetration_depth(barrier, J_DJ)
+    B_0 = 2.0 / (d * λ_J)
+
+    B_app = junction.field
+    J = junction.current
+    db_half = 0.5 * μ0 * J * w
+
+    B_plus = B_app + db_half
+    B_minus = B_app - db_half
+
+    ϕ_plus = 2.0 * asin(clamp(B_plus / B_0, -1.0, 1.0))
+    ϕ_minus = 2.0 * asin(clamp(-B_minus / B_0, -1.0, 1.0))
+
+    t_plus = tan(ϕ_plus / 4.0)
+    t_minus = tan(ϕ_minus / 4.0)
+
+    Δϕ_plus = 4.0 * atan(t_plus * exp(-(w / 2.0 - y_point) / λ_J))
+    Δϕ_minus = 4.0 * atan(t_minus * exp(-(y_point + w / 2.0) / λ_J))
+    return Δϕ_plus + Δϕ_minus
+end
+
+function wide_phase_profile(junction::Junction, y::AbstractVector{<:Real}, J_DJ::Real)
+    return [wide_phase_profile(junction, y, yi, J_DJ) for yi in y]
+end
+
+function analytic_wide_J(junction::Junction, y::AbstractVector{<:Real}; J_DJ::Real = junction_depairing_current(junction))
+    Δϕ = wide_phase_profile(junction, y, J_DJ)
+    return J_DJ .* sin.(Δϕ)
+end
+
+function analytic_wide_A(junction::Junction, y::AbstractVector{<:Real}; J_DJ::Real = junction_depairing_current(junction))
+    d = effective_thickness(junction.barrier)
+    Δϕ = wide_phase_profile(junction, y, J_DJ)
+    Δϕ_0 = wide_phase_profile(junction, y, 0.0, J_DJ)
+    return -(Δϕ .- Δϕ_0) ./ d
 end
