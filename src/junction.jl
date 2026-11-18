@@ -6,6 +6,11 @@ const Solver = MulTDGL.ImplicitLondonMultigridSolver{2, Float64,
                MulTDGL.RectPrimalForm2Data2{Float64, CUDACore.CuArray{Float64, 1, CUDACore.DeviceMemory}}}
 
 const Field = MulTDGL.RectPrimalForm1Data{2, Float64, CUDACore.CuArray{Float64, 1, CUDACore.DeviceMemory}}
+const SimState = MulTDGL.State{
+    MulTDGL.RectPrimalForm0Data{2, ComplexF64, CUDACore.CuArray{ComplexF64, 1, CUDACore.DeviceMemory}},
+    MulTDGL.RectPrimalForm1Data{2, Float64, CUDACore.CuArray{Float64, 1, CUDACore.DeviceMemory}},
+    MulTDGL.RectPrimalForm0Data{2, Float64, CUDACore.CuArray{Float64, 1, CUDACore.DeviceMemory}}
+}
 
 struct JcInitHold end
 struct JcJHold end
@@ -63,6 +68,9 @@ mutable struct Junction
     supercurrent::Field
     mode::JcMode
     holdsteps::Int64
+    min_e::Float64
+    last_stable_state::SimState
+    last_stable_current::Float64
 end
 
 state(junction::Junction) = MulTDGL.state(junction.solver)
@@ -95,26 +103,50 @@ function apply_bcs!(junction::Junction)
     end
 end
 
+function save_stable_state!(junction::Junction)
+    copy!(junction.last_stable_state, state(junction))
+    junction.last_stable_current = junction.current
+end
+
+function restore_stable_state!(junction::Junction)
+    copy!(state(junction), junction.last_stable_state)
+    junction.current = junction.last_stable_current
+    MulTDGL.reconfigure!(system(junction), state(junction))
+    apply_bcs!(junction)
+    calculate_supercurrent!(junction)
+end
+
 function step!(junction::Junction)
+    junction.mode == JcDone() && return
     apply_bcs!(junction)
     step_data = MulTDGL.step!(junction.solver, junction.boundary, (junction.current, 0.0))
     calculate_supercurrent!(junction)
-    e_field = step_data.e[1]
+    abs_e = abs(step_data.e[1])
     junction.holdsteps += 1
 
     if junction.mode == JcInitHold()
-        if junction.holdsteps > 1_000
+        if junction.holdsteps > 1_000 || (junction.holdsteps >= 100 && abs_e < 5e-6)
+            save_stable_state!(junction)
             junction.holdsteps = 0
+            junction.min_e = Inf
             junction.mode = JcJHold()
         end
     elseif junction.mode == JcJHold()
-        if e_field < 1e-5
+        if junction.holdsteps >= 5
+            junction.min_e = min(junction.min_e, abs_e)
+        end
+
+        if junction.holdsteps >= 10 && abs_e < 5e-6
+            save_stable_state!(junction)
             junction.holdsteps = 0
+            junction.min_e = Inf
             junction.current *= 1.025
             println(junction.current)
-        elseif junction.holdsteps >= 10_000
+        elseif (junction.holdsteps >= 15 && abs_e > 1.05 * junction.min_e) || junction.holdsteps >= 3_000
+            restore_stable_state!(junction)
             junction.holdsteps = 0
             junction.mode = JcDone()
+            println("Reached critical current J_c = $(junction.current) (restored stationary state)")
         end
     end
 end
@@ -209,7 +241,9 @@ function get_junction(b_field, current, h=0.5; barrier = Barrier())
     j_super = MulTDGL.similar(MulTDGL.state(solver).a)
     MulTDGL.data(j_super) .= zero(eltype(MulTDGL.data(j_super)))
 
-    return Junction(barrier, b_field, current, solver, boundary, j_super, JcInitHold(), 0)
+    last_stable_state = copy(MulTDGL.state(solver))
+
+    return Junction(barrier, b_field, current, solver, boundary, j_super, JcInitHold(), 0, Inf, last_stable_state, Float64(current))
 end
 
 const DEPAIRING_CURRENT_1D = 2 / (3 * sqrt(3))
