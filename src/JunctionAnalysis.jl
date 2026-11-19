@@ -13,9 +13,11 @@ include("visualise.jl")
 export Barrier, get_junction, plot_junction, 
        state, mesh, step!, step_animation!,
        JcInitHold, JcJHold, JcDone,
-       barrier_center_x, barrier_y_coords,
+       barrier_center_x, barrier_y_coords, barrier_x_coords,
        junction_depairing_current, josephson_penetration_depth,
        analytic_narrow_J, analytic_wide_J,
-       analytic_narrow_A, analytic_wide_A
+       analytic_narrow_A, analytic_wide_A,
+       analytic_narrow_ψ, analytic_wide_ψ,
+       analytic_narrow_Bz, analytic_wide_Bz
 
 end # module

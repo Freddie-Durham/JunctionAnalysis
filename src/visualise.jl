@@ -7,6 +7,12 @@ struct PotentialBuffer
     sim_1d_obs::Observable{Vector{Float64}}
     narrow_1d_obs::Observable{Vector{Float64}}
     wide_1d_obs::Observable{Vector{Float64}}
+    trans_ψ_obs::Observable{Vector{Float64}}
+    narrow_ψ_obs::Observable{Vector{Float64}}
+    wide_ψ_obs::Observable{Vector{Float64}}
+    trans_Bz_obs::Observable{Vector{Float64}}
+    narrow_Bz_obs::Observable{Vector{Float64}}
+    wide_Bz_obs::Observable{Vector{Float64}}
     A_buff::Vector{Vec2f}
     J_buff::Vector{Vec2f}
     Bz_buff::Matrix{Float64}
@@ -15,8 +21,16 @@ struct PotentialBuffer
     sim_1d_buff::Vector{Float64}
     narrow_1d_buff::Vector{Float64}
     wide_1d_buff::Vector{Float64}
+    trans_ψ_buff::Vector{Float64}
+    narrow_ψ_buff::Vector{Float64}
+    wide_ψ_buff::Vector{Float64}
+    trans_Bz_buff::Vector{Float64}
+    narrow_Bz_buff::Vector{Float64}
+    wide_Bz_buff::Vector{Float64}
+    x_coords::Vector{Float64}
     y_coords::Vector{Float64}
     x_mid::Int
+    y_mid::Int
     quantity::Symbol
     vec_dims::NTuple{2, Int}
     step::Integer
@@ -48,6 +62,13 @@ function update_A_data!(junction::Junction, buffer::PotentialBuffer)
         x_next = x == nx ? 1 : x + 1
         buffer.Bz_buff[x, y] = ((A_y[x_next, y] - A_y[x, y]) - (A_x[x, y + 1] - A_x[x, y])) * inv_area
     end
+
+    y_face_mid = clamp(buffer.y_mid, 1, ny)
+    @inbounds for x in 1:nx
+        x_prev = x == 1 ? nx : x - 1
+        buffer.trans_Bz_buff[x] = 0.5 * (buffer.Bz_buff[x_prev, y_face_mid] + buffer.Bz_buff[x, y_face_mid])
+    end
+    buffer.wide_Bz_buff .= analytic_wide_Bz(junction, buffer.x_coords)
 
     if buffer.quantity == :A
         buffer.sim_1d_buff .= @view(A_x[buffer.x_mid, :]) ./ hx
@@ -89,9 +110,11 @@ end
 retrieve_ψ(sim) = abs.(asarray(MulTDGL.state(sim).ψ)) .^2
 
 "copy the order parameter data into a buffer"
-function update_ψ_data!(sim::Solver, buffer::PotentialBuffer)
-    ψ_data = retrieve_ψ(sim)
+function update_ψ_data!(junction::Junction, buffer::PotentialBuffer)
+    ψ_data = retrieve_ψ(junction.solver)
     copyto!(buffer.ψ_buff, ψ_data)
+    buffer.trans_ψ_buff .= @view(buffer.ψ_buff[:, buffer.y_mid])
+    buffer.wide_ψ_buff .= analytic_wide_ψ(junction, buffer.x_coords)
 end
 
 "update buffers with latest data and use notify to update Observables"
@@ -99,7 +122,7 @@ function update_observables!(junction::Junction, buffer::PotentialBuffer)
     update_A_data!(junction, buffer)
     update_J_data!(junction, buffer)
     update_ϕ_data!(junction.solver, buffer)
-    update_ψ_data!(junction.solver, buffer)
+    update_ψ_data!(junction, buffer)
 
     notify(buffer.A_obs)
     notify(buffer.J_obs)
@@ -108,6 +131,10 @@ function update_observables!(junction::Junction, buffer::PotentialBuffer)
     notify(buffer.ψ_obs)
     notify(buffer.sim_1d_obs)
     notify(buffer.wide_1d_obs)
+    notify(buffer.trans_ψ_obs)
+    notify(buffer.wide_ψ_obs)
+    notify(buffer.trans_Bz_obs)
+    notify(buffer.wide_Bz_obs)
 end
 
 const ARROW_COUNT = 16
@@ -135,7 +162,7 @@ function plot_junction(junction::Junction; quantity::Symbol = :J)
     quantity in (:J, :A) || throw(ArgumentError("quantity must be :J or :A, got $(repr(quantity))"))
     sim = junction.solver
 
-    fig = Figure(size = (1400, 700))
+    fig = Figure(size = (1800, 700))
     ax1 = Axis(fig[1, 1], aspect = DataAspect())
 
     dims = min_dims(state(junction).a.extent)
@@ -157,24 +184,44 @@ function plot_junction(junction::Junction; quantity::Symbol = :J)
     J_grid = copy(A_grid)
     J_obs = Observable(J_grid)
 
+    x_coords = barrier_x_coords(junction)
     y_coords = barrier_y_coords(junction)
     x_mid = barrier_center_x(junction)
+    y_mid = cld(size(ψ_grid, 2), 2)
 
     sim_1d_buff = zeros(Float64, length(y_coords))
     J_DJ = junction_depairing_current(junction)
     narrow_1d_buff = quantity == :J ? analytic_narrow_J(junction, y_coords; J_DJ = J_DJ) : analytic_narrow_A(junction, y_coords)
     wide_1d_buff = quantity == :J ? analytic_wide_J(junction, y_coords; J_DJ = J_DJ) : analytic_wide_A(junction, y_coords; J_DJ = J_DJ)
 
+    trans_ψ_buff = copy(ψ_grid[:, y_mid])
+    narrow_ψ_buff = analytic_narrow_ψ(junction, x_coords; J_DJ = J_DJ)
+    wide_ψ_buff = analytic_wide_ψ(junction, x_coords; J_DJ = J_DJ)
+
+    trans_Bz_buff = zeros(Float64, length(x_coords))
+    narrow_Bz_buff = analytic_narrow_Bz(junction, x_coords)
+    wide_Bz_buff = analytic_wide_Bz(junction, x_coords; J_DJ = J_DJ)
+
     sim_1d_obs = Observable(sim_1d_buff)
     narrow_1d_obs = Observable(narrow_1d_buff)
     wide_1d_obs = Observable(wide_1d_buff)
+    trans_ψ_obs = Observable(trans_ψ_buff)
+    narrow_ψ_obs = Observable(narrow_ψ_buff)
+    wide_ψ_obs = Observable(wide_ψ_buff)
+    trans_Bz_obs = Observable(trans_Bz_buff)
+    narrow_Bz_obs = Observable(narrow_Bz_buff)
+    wide_Bz_obs = Observable(wide_Bz_buff)
 
     buffer = PotentialBuffer(
         A_obs, J_obs, Bz_obs, ϕ_obs, ψ_obs,
         sim_1d_obs, narrow_1d_obs, wide_1d_obs,
+        trans_ψ_obs, narrow_ψ_obs, wide_ψ_obs,
+        trans_Bz_obs, narrow_Bz_obs, wide_Bz_obs,
         A_grid, J_grid, Bz_grid, ϕ_grid, ψ_grid,
         sim_1d_buff, narrow_1d_buff, wide_1d_buff,
-        y_coords, x_mid, quantity, dims, step
+        trans_ψ_buff, narrow_ψ_buff, wide_ψ_buff,
+        trans_Bz_buff, narrow_Bz_buff, wide_Bz_buff,
+        x_coords, y_coords, x_mid, y_mid, quantity, dims, step
     )
 
     heatmap!(ax1, buffer.ψ_obs, colorrange = (0.0, 1.0))
@@ -199,8 +246,37 @@ function plot_junction(junction::Junction; quantity::Symbol = :J)
     lines!(ax2, y_coords, wide_1d_obs, label = "Analytic (Wide)", linestyle = :dot, linewidth = 2)
     axislegend(ax2, position = :lb)
 
+    col3 = GridLayout(fig[1, 3])
+    ax3_ψ = Axis(
+        col3[1, 1],
+        ylabel = "|ψ|²",
+        title = "Transverse Order Parameter Profile |ψ(x, 0)|²"
+    )
+    hidexdecorations!(ax3_ψ, grid = false)
+    lines!(ax3_ψ, x_coords, trans_ψ_obs, label = "Simulated", linewidth = 2)
+    lines!(ax3_ψ, x_coords, narrow_ψ_obs, label = "Analytic (Narrow)", linestyle = :dash, linewidth = 2)
+    lines!(ax3_ψ, x_coords, wide_ψ_obs, label = "Analytic (Wide)", linestyle = :dot, linewidth = 2)
+    ylims!(ax3_ψ, -0.05, 1.05)
+    axislegend(ax3_ψ, position = :rb)
+
+    ax3_Bz = Axis(
+        col3[2, 1],
+        xlabel = "x (centered on barrier)",
+        ylabel = "B_z",
+        title = "Transverse Magnetic Field Profile B_z(x, 0)"
+    )
+    lines!(ax3_Bz, x_coords, trans_Bz_obs, label = "Simulated", linewidth = 2)
+    lines!(ax3_Bz, x_coords, narrow_Bz_obs, label = "Analytic (Narrow)", linestyle = :dash, linewidth = 2)
+    lines!(ax3_Bz, x_coords, wide_Bz_obs, label = "Analytic (Wide)", linestyle = :dot, linewidth = 2)
+    axislegend(ax3_Bz, position = :rt)
+
+    linkxaxes!(ax3_ψ, ax3_Bz)
+
     on(sim_1d_obs) do _
         autolimits!(ax2)
+    end
+    on(trans_Bz_obs) do _
+        autolimits!(ax3_Bz)
     end
 
     return fig, buffer 

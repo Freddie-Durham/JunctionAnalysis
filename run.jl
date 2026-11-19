@@ -7,7 +7,7 @@ width = 32
 # Choose :J to visualise supercurrent J_x(y) or :A to visualise vector potential A_x(y)
 quantity = :J
 
-junc = get_junction(0.2, 0.001, 2^-3, barrier = Barrier(-1.0, 1.0, 1.0, 1.0, width, 16, 3.0))
+junc = get_junction(0.1, 0.001, 2^-3, barrier = Barrier(-1.0, 1.0, 1.0, 1.0, width, 16, 3.0))
 println("λⱼ = ", josephson_penetration_depth(junc))
 fig, buffer = plot_junction(junc; quantity = quantity)
 

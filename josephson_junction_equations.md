@@ -528,9 +528,82 @@ $$
 
 ---
 
+## 5. Transverse profiles $|\psi(x, 0)|^2$ and $B_z(x, 0)$ across the junction
+
+To compare the simulation with the narrow and wide analytic models along the transverse line $y = 0$ (perpendicular to the barrier, centered at $x = 0$), we evaluate the spatial variation of both the magnetic field $B_z(x, 0)$ and the Cooper pair density $|\psi(x, 0)|^2$.
+
+### Transverse magnetic field profile $B_z(x, 0)$
+
+Inside the normal barrier ($|x| \le t/2$, where $t = \tilde{d}_{\mathrm{n}}$ is the bare barrier thickness), the Josephson supercurrent is uniform in $x$ and no London screening occurs, so the magnetic field is constant across the barrier thickness: $B_z(x, 0) = B_{\mathrm{center}}$. Inside the superconducting electrodes ($|x| > t/2$), Meissner screening causes the magnetic field to decay exponentially with the London penetration depth $\lambda_L = \kappa$:
+
+$$
+\boxed{B_z(x, 0) = \begin{cases} B_{\mathrm{center}}, & |x| \le t/2, \\[4pt] B_{\mathrm{center}}\,\exp\!\left(-\dfrac{|x| - t/2}{\kappa}\right), & |x| > t/2. \end{cases}}
+$$
+
+Note that integrating $B_z(x, 0)$ over $x \in (-\infty, \infty)$ gives $\int_{-\infty}^{\infty} B_z(x, 0)\,dx = (t + 2\kappa)B_{\mathrm{center}} = d\,B_{\mathrm{center}}$, directly recovering the effective magnetic thickness $d = t + 2\kappa$.
+
+The barrier-center field $B_{\mathrm{center}} = B_z(0, 0)$ differs between the two regimes:
+- **Narrow regime ($w \ll \lambda_J$):** Self-field screening along $y$ is negligible, so the field at the center of the barrier equals the applied field:
+
+$$
+B_{\mathrm{center}}^{\mathrm{narrow}} = B_{\mathrm{app}}.
+$$
+
+- **Wide regime ($w \gg \lambda_J$):** From the phase-gradient relation $B_z(0, y) = \frac{1}{d}\frac{\partial\Delta\phi_{\mathrm{wide}}}{\partial y}$ (in dimensionless units where $\phi_0 = 2\pi$) and the derivatives $\partial_y\Delta\phi_\pm = \pm\frac{2}{\lambda_J}\sin(\Delta\phi_\pm/2)$ with $B_0 = \frac{2}{d\lambda_J}$, the field at $y = 0$ is the superposition of the two exponentially decaying edge-field tails:
+
+$$
+B_{\mathrm{center}}^{\mathrm{wide}} = B_0\left(\sin\frac{\Delta\phi_+(0)}{2} - \sin\frac{\Delta\phi_-(0)}{2}\right).
+$$
+
+### Transverse order parameter profile $|\psi(x, 0)|^2$
+
+Across an SNS junction carrying local supercurrent density $J_{\mathrm{local}} = J_x(y = 0)$ in local field $B_{\mathrm{local}} = |B_z(0, 0)|$, the 1D transverse order parameter magnitude $f(x) = |\psi(x, 0)|$ satisfies the stationary Ginzburg–Landau equation with effective field pair-breaking parameter $B_{\mathrm{local}}$:
+
+$$
+\frac{1}{m(x)}\frac{d^2 f}{dx^2} + \left[\alpha(x) - \frac{B_{\mathrm{local}}}{m(x)} - \beta(x)f^2 - \frac{m(x)J_{\mathrm{local}}^2}{f^4}\right]f = 0.
+$$
+
+Rescaling separately in each region removes the explicit material and field parameters:
+
+1. **Superconducting electrodes ($|x| > t/2$, where $\alpha_s = \beta_s = m_s = 1$):** With $\tilde{x} = x\sqrt{1 - B_{\mathrm{local}}}$, $\tilde{f}_s = f / \sqrt{1 - B_{\mathrm{local}}}$, and $\tilde{j}_x = J_{\mathrm{local}}(1 - B_{\mathrm{local}})^{-3/2}$, the GL equation becomes
+
+$$
+\frac{d^2\tilde{f}_s}{d\tilde{x}^2} + \left(1 - \tilde{f}_s^2 - \frac{\tilde{j}_x^2}{\tilde{f}_s^4}\right)\tilde{f}_s = 0.
+$$
+
+Far inside the electrodes ($|x| \to \infty$), $d\tilde{f}_s/d\tilde{x} \to 0$ and $\tilde{f}_s^2 \to \tilde{f}_\infty^2$, where $\tilde{f}_\infty^2 \in [2/3, 1]$ is the largest root of the bulk current-carrying equilibrium condition $\tilde{f}_\infty^4(1 - \tilde{f}_\infty^2) = \tilde{j}_x^2$. Multiplying by $2\,d\tilde{f}_s/d\tilde{x}$ and integrating from $\tilde{x}$ to $\infty$ yields the first integral in the electrodes:
+
+$$
+\left(\frac{d\tilde{f}_s}{d\tilde{x}}\right)^2 = (\tilde{f}_\infty^2 - \tilde{f}_s^2) - \frac{1}{2}(\tilde{f}_\infty^4 - \tilde{f}_s^4) - \tilde{j}_x^2\left(\frac{1}{\tilde{f}_s^2} - \frac{1}{\tilde{f}_\infty^2}\right).
+$$
+
+2. **Normal barrier ($|x| \le t/2$, with parameters $\alpha_n < 0$, $\beta_n$, $m_n$):** With $\tilde{u} = x / \tilde{\xi}_n$, $\tilde{\xi}_n = \bigl(-m_n\alpha_n + B_{\mathrm{local}}\bigr)^{-1/2}$, $\tilde{f}_n = f\sqrt{\beta_n / (-\alpha_n + B_{\mathrm{local}}/m_n)}$, and $\tilde{j}_u = J_{\mathrm{local}}\beta_n\sqrt{m_n}\,\tilde{\xi}_n^3$, the GL equation becomes
+
+$$
+\frac{d^2\tilde{f}_n}{d\tilde{u}^2} - \left(1 + \tilde{f}_n^2 - \frac{\tilde{j}_u^2}{\tilde{f}_n^4}\right)\tilde{f}_n = 0,
+$$
+
+with symmetry condition $\left.d\tilde{f}_n/d\tilde{u}\right|_{\tilde{u}=0} = 0$ at the center of the barrier.
+
+3. **S/N interface matching ($|x| = t/2$):** Continuity of the order parameter $f$ and its flux $m^{-1}df/dx$ across $|x| = t/2$ links the rescaled barrier and electrode variables via $\tilde{s}$ and $\tilde{v}$ (defined in Section 4):
+
+$$
+\tilde{f}_n^2(t/2) = (-\tilde{s})\,\tilde{f}_s^2(t/2),
+\qquad
+\left.\frac{d\tilde{f}_n}{d\tilde{u}}\right|_{t/2}^2 = (-\tilde{s})\,\tilde{v}^2\left.\frac{d\tilde{f}_s}{d\tilde{x}}\right|_{t/2}^2.
+$$
+
+Shooting from $\tilde{u} = 0$ with trial center value $\tilde{f}_n^2(0) = \tilde{f}_0^2$ to $\tilde{u} = t / (2\tilde{\xi}_n)$ fixes $\tilde{f}_0^2$ uniquely by satisfying this interface flux-matching condition, after which integrating outward in $\tilde{x}$ gives the complete profile $|\psi(x, 0)|^2 = f^2(x)$.
+
+The two analytic models evaluate this 1D boundary-value solution at their respective mid-barrier conditions $(J_{\mathrm{local}}, B_{\mathrm{local}})$:
+- **Narrow regime:** $J_{\mathrm{local}} = J_x^{\mathrm{narrow}}(0) = J_{\mathrm{DJ}}$ and $B_{\mathrm{local}} = B_{\mathrm{app}}$.
+- **Wide regime:** $J_{\mathrm{local}} = J_x^{\mathrm{wide}}(0) = J_{\mathrm{DJ}}\sin\bigl(\Delta\phi_{\mathrm{wide}}(0)\bigr)$ and $B_{\mathrm{local}} = |B_{\mathrm{center}}^{\mathrm{wide}}|$.
+
+---
+
 ## Summary of regimes
 
-| Regime | Condition | $J_c$ vs. applied field | $J_x(y)$ profile | $A_x(y)$ profile |
-|---|---|---|---|---|
-| Narrow | $w \ll \lambda_J$ | Fraunhofer: $J_{\mathrm{DJ}}\left\lvert\dfrac{\sin(\pi w d B/\phi_0)}{\pi w d B/\phi_0}\right\rvert$ | $J_{\mathrm{DJ}}\cos(ky)$ | $-B_{\mathrm{app}}\,y$ |
-| Wide | $w \gg \lambda_J$ | Linear decrease: $\dfrac{2}{w}\left(2\lambda_J J_{\mathrm{DJ}} - \dfrac{\lvert B_{\mathrm{app}}\rvert}{\mu_0}\right)$ | $J_{\mathrm{DJ}}\sin\bigl(\Delta\phi_+(y) + \Delta\phi_-(y)\bigr)$ | $-\dfrac{\phi_0}{2\pi d}\bigl(\Delta\phi_{\mathrm{wide}}(y) - \Delta\phi_{\mathrm{wide}}(0)\bigr)$ |
+| Regime | Condition | $J_c$ vs. applied field | $J_x(y)$ profile | $A_x(y)$ profile | $B_z(x, 0)$ center field $B_{\mathrm{center}}$ | $|\psi(x, 0)|^2$ local inputs $(J_{\mathrm{local}}, B_{\mathrm{local}})$ |
+|---|---|---|---|---|---|---|
+| Narrow | $w \ll \lambda_J$ | Fraunhofer: $J_{\mathrm{DJ}}\left\lvert\dfrac{\sin(\pi w d B/\phi_0)}{\pi w d B/\phi_0}\right\rvert$ | $J_{\mathrm{DJ}}\cos(ky)$ | $-B_{\mathrm{app}}\,y$ | $B_{\mathrm{app}}$ | $\bigl(J_{\mathrm{DJ}},\, B_{\mathrm{app}}\bigr)$ |
+| Wide | $w \gg \lambda_J$ | Linear decrease: $\dfrac{2}{w}\left(2\lambda_J J_{\mathrm{DJ}} - \dfrac{\lvert B_{\mathrm{app}}\rvert}{\mu_0}\right)$ | $J_{\mathrm{DJ}}\sin\bigl(\Delta\phi_+(y) + \Delta\phi_-(y)\bigr)$ | $-\dfrac{\phi_0}{2\pi d}\bigl(\Delta\phi_{\mathrm{wide}}(y) - \Delta\phi_{\mathrm{wide}}(0)\bigr)$ | $B_0\left(\sin\dfrac{\Delta\phi_+(0)}{2} - \sin\dfrac{\Delta\phi_-(0)}{2}\right)$ | $\bigl(J_{\mathrm{DJ}}\sin\Delta\phi_{\mathrm{wide}}(0),\, \lvert B_{\mathrm{center}}^{\mathrm{wide}}\rvert\bigr)$ |
