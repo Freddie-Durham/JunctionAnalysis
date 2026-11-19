@@ -68,11 +68,9 @@ function update_A_data!(junction::Junction, buffer::PotentialBuffer)
         x_prev = x == 1 ? nx : x - 1
         buffer.trans_Bz_buff[x] = 0.5 * (buffer.Bz_buff[x_prev, y_face_mid] + buffer.Bz_buff[x, y_face_mid])
     end
-    buffer.wide_Bz_buff .= analytic_wide_Bz(junction, buffer.x_coords)
 
     if buffer.quantity == :A
         buffer.sim_1d_buff .= @view(A_x[buffer.x_mid, :]) ./ hx
-        buffer.wide_1d_buff .= analytic_wide_A(junction, buffer.y_coords)
     end
 end
 
@@ -95,7 +93,6 @@ function update_J_data!(junction::Junction, buffer::PotentialBuffer)
         hx = mesh(junction).h[1]
         J_x = MulTDGL.asarray(J_edges, 1)
         buffer.sim_1d_buff .= @view(J_x[buffer.x_mid, :]) ./ hx
-        buffer.wide_1d_buff .= analytic_wide_J(junction, buffer.y_coords)
     end
 end
 
@@ -114,7 +111,6 @@ function update_ψ_data!(junction::Junction, buffer::PotentialBuffer)
     ψ_data = retrieve_ψ(junction.solver)
     copyto!(buffer.ψ_buff, ψ_data)
     buffer.trans_ψ_buff .= @view(buffer.ψ_buff[:, buffer.y_mid])
-    buffer.wide_ψ_buff .= analytic_wide_ψ(junction, buffer.x_coords)
 end
 
 "update buffers with latest data and use notify to update Observables"
@@ -130,11 +126,8 @@ function update_observables!(junction::Junction, buffer::PotentialBuffer)
     notify(buffer.ϕ_obs)
     notify(buffer.ψ_obs)
     notify(buffer.sim_1d_obs)
-    notify(buffer.wide_1d_obs)
     notify(buffer.trans_ψ_obs)
-    notify(buffer.wide_ψ_obs)
     notify(buffer.trans_Bz_obs)
-    notify(buffer.wide_Bz_obs)
 end
 
 const ARROW_COUNT = 16
@@ -268,7 +261,7 @@ function plot_junction(junction::Junction; quantity::Symbol = :J)
     lines!(ax3_Bz, x_coords, trans_Bz_obs, label = "Simulated", linewidth = 2)
     lines!(ax3_Bz, x_coords, narrow_Bz_obs, label = "Analytic (Narrow)", linestyle = :dash, linewidth = 2)
     lines!(ax3_Bz, x_coords, wide_Bz_obs, label = "Analytic (Wide)", linestyle = :dot, linewidth = 2)
-    axislegend(ax3_Bz, position = :rt)
+    axislegend(ax3_Bz, position = :lt)
 
     linkxaxes!(ax3_ψ, ax3_Bz)
 

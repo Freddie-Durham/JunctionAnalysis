@@ -315,6 +315,17 @@ function analytic_narrow_A(junction::Junction, y::AbstractVector{<:Real})
     return -junction.field .* y
 end
 
+function analytic_wide_Jc(junction::Junction; J_DJ::Real = junction_depairing_current(junction))
+    barrier = junction.barrier
+    d = effective_thickness(barrier)
+    w = barrier.width
+    κ = barrier.kappa
+    μ0 = 1.0 / κ^2
+    λ_J = josephson_penetration_depth(barrier, J_DJ)
+    B_0 = 2.0 / (d * λ_J)
+    return max(0.0, (2.0 / (w * μ0)) * (B_0 - abs(junction.field)))
+end
+
 function wide_phase_profile(junction::Junction, _, y_point::Real, J_DJ::Real)
     barrier = junction.barrier
     d = effective_thickness(barrier)
@@ -325,7 +336,7 @@ function wide_phase_profile(junction::Junction, _, y_point::Real, J_DJ::Real)
     B_0 = 2.0 / (d * λ_J)
 
     B_app = junction.field
-    J = junction.current
+    J = analytic_wide_Jc(junction; J_DJ = J_DJ)
     db_half = 0.5 * μ0 * J * w
 
     B_plus = B_app + db_half
@@ -354,7 +365,7 @@ function wide_field_at_y(junction::Junction, y_point::Real, J_DJ::Real = junctio
     B_0 = 2.0 / (d * λ_J)
 
     B_app = junction.field
-    J = junction.current
+    J = analytic_wide_Jc(junction; J_DJ = J_DJ)
     db_half = 0.5 * μ0 * J * w
 
     B_plus = B_app + db_half

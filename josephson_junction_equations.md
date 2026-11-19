@@ -284,7 +284,7 @@ $$
 \frac{\partial\Delta\phi_-}{\partial y} = -\frac{2}{\lambda_J}\sin\frac{\Delta\phi_-(y)}{2} .
 $$
 
-Matching $\partial_y\Delta\phi = \frac{2\pi d}{\phi_0}B_z$ at the two boundaries $y = \pm w/2$ (using $\frac{2\pi d}{\phi_0}B_0 = \frac{2}{\lambda_J}$) fixes the edge phase values $\phi_\pm = \Delta\phi_\pm(\pm w/2)$ in terms of the edge fields $B(\pm w/2) = B_{\mathrm{app}} \pm \frac{\mu_0 J w}{2}$:
+Matching $\partial_y\Delta\phi = \frac{2\pi d}{\phi_0}B_z$ at the two boundaries $y = \pm w/2$ (using $\frac{2\pi d}{\phi_0}B_0 = \frac{2}{\lambda_J}$) fixes the edge phase values $\phi_\pm = \Delta\phi_\pm(\pm w/2)$ in terms of the edge fields $B(\pm w/2) = B_{\mathrm{app}} \pm \frac{\mu_0 J w}{2}$. Evaluated at the wide-junction low-field linear critical current $J = J_c = \max\!\left(0,\,\frac{2}{w\mu_0}(B_0 - |B_{\mathrm{app}}|)\right)$, the more heavily loaded edge reaches $\pm B_0$ while the opposite edge stays within $\pm B_0$:
 
 $$
 \sin\frac{\phi_+}{2} = \frac{B(+w/2)}{B_0},
