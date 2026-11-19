@@ -117,7 +117,7 @@ function restore_stable_state!(junction::Junction)
 end
 
 function step!(junction::Junction)
-    junction.mode == JcDone() && return
+    Ec = 5e-6
     apply_bcs!(junction)
     step_data = MulTDGL.step!(junction.solver, junction.boundary, (junction.current, 0.0))
     calculate_supercurrent!(junction)
@@ -125,7 +125,7 @@ function step!(junction::Junction)
     junction.holdsteps += 1
 
     if junction.mode == JcInitHold()
-        if junction.holdsteps > 1_000 || (junction.holdsteps >= 100 && abs_e < 5e-6)
+        if junction.holdsteps > 1_000 || (junction.holdsteps >= 100 && abs_e < Ec)
             save_stable_state!(junction)
             junction.holdsteps = 0
             junction.min_e = Inf
@@ -136,7 +136,7 @@ function step!(junction::Junction)
             junction.min_e = min(junction.min_e, abs_e)
         end
 
-        if junction.holdsteps >= 10 && abs_e < 5e-6
+        if junction.holdsteps >= 10 && abs_e < Ec
             save_stable_state!(junction)
             junction.holdsteps = 0
             junction.min_e = Inf
@@ -144,6 +144,8 @@ function step!(junction::Junction)
             println(junction.current)
         elseif (junction.holdsteps >= 15 && abs_e > 1.05 * junction.min_e) || junction.holdsteps >= 3_000
             restore_stable_state!(junction)
+            calculate_supercurrent!(junction)
+
             junction.holdsteps = 0
             junction.mode = JcDone()
             println("Reached critical current J_c = $(junction.current) (restored stationary state)")
@@ -293,6 +295,8 @@ function josephson_penetration_depth(barrier::Barrier, J_DJ::Real)
     return barrier.kappa / sqrt(d * J_DJ)
 end
 
+josephson_penetration_depth(j::Junction) = josephson_penetration_depth(j.barrier, junction_depairing_current(j))
+
 function analytic_narrow_J(junction::Junction, y::AbstractVector{<:Real}; J_DJ::Real = junction_depairing_current(junction))
     d = effective_thickness(junction.barrier)
     k = d * junction.field
@@ -306,7 +310,7 @@ end
 function wide_phase_profile(junction::Junction, _, y_point::Real, J_DJ::Real)
     barrier = junction.barrier
     d = effective_thickness(barrier)
-    w = Float64(barrier.width)
+    w = barrier.width
     κ = barrier.kappa
     μ0 = 1.0 / κ^2
     λ_J = josephson_penetration_depth(barrier, J_DJ)
@@ -319,9 +323,11 @@ function wide_phase_profile(junction::Junction, _, y_point::Real, J_DJ::Real)
     B_plus = B_app + db_half
     B_minus = B_app - db_half
 
+    # assumes Meissner state and that B can't exceed B_0
     ϕ_plus = 2.0 * asin(clamp(B_plus / B_0, -1.0, 1.0))
     ϕ_minus = 2.0 * asin(clamp(-B_minus / B_0, -1.0, 1.0))
 
+    # tan and atan come from integrating dΔϕ/dy = 2/λⱼ * sin(Δϕ/2)
     t_plus = tan(ϕ_plus / 4.0)
     t_minus = tan(ϕ_minus / 4.0)
 

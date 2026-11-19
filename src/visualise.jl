@@ -197,7 +197,11 @@ function plot_junction(junction::Junction; quantity::Symbol = :J)
     lines!(ax2, y_coords, sim_1d_obs, label = "Simulated", linewidth = 2)
     lines!(ax2, y_coords, narrow_1d_obs, label = "Analytic (Narrow)", linestyle = :dash, linewidth = 2)
     lines!(ax2, y_coords, wide_1d_obs, label = "Analytic (Wide)", linestyle = :dot, linewidth = 2)
-    axislegend(ax2, position = :rt)
+    axislegend(ax2, position = :lb)
+
+    on(sim_1d_obs) do _
+        autolimits!(ax2)
+    end
 
     return fig, buffer 
 end
